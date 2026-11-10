@@ -1,199 +1,204 @@
-# Empório da Música — agente de atendimento
+# Empório da Música — customer service agent
 
-Protótipo de agente de mensagens de texto que atende clientes da Empório da Música (loja fictícia de instrumentos em Campo Grande/MS): catálogo, preços, promoções, pagamento, frete, status de pedidos, trocas e devoluções, horários e informações da loja.
+🇧🇷 [Versão em português](README.pt-BR.md)
 
-A ideia central: **o LLM conversa e decide o que consultar; o código consulta e calcula.** Preço, parcela, frete, prazo de devolução e checagem de identidade são feitos em Python, com testes. O modelo nunca faz conta, nunca resolve conflito de dados e nunca recebe valores em reais como argumento.
+A text-message agent prototype that serves customers of Empório da Música (a fictional musical instrument store in Campo Grande, MS, Brazil): catalog, prices, promotions, payment, shipping, order status, exchanges and returns, opening hours and store information.
+
+The agent talks to customers in Brazilian Portuguese, because that is the store's audience. The code, tests and this documentation are in English; the example conversations in [`examples/`](examples/) are in Portuguese, as the agent produced them.
+
+The core idea: **the LLM talks and decides what to look up; the code looks up and calculates.** Prices, installments, shipping, return deadlines and identity checks are done in Python, with tests. The model never does arithmetic, never resolves data conflicts and never receives amounts in reais as arguments.
 
 ---
 
-## Como rodar
+## How to run
 
-Requisitos: Python 3.11+.
+Requirements: Python 3.11+.
 
 ```bash
 python -m venv .venv
 # Windows: .venv\Scripts\activate   |   Linux/macOS: source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env            # Windows: copy .env.example .env
-python scripts/configurar_chaves.py   # grava as chaves no .env sem exibi-las
+python scripts/configurar_chaves.py   # writes the keys to .env without displaying them
 ```
 
-### Provedor do modelo
+### Model provider
 
-Qualquer API compatível com a da OpenAI funciona. Há quatro perfis prontos (`LLM_PROVIDER` no `.env` ou `--provider` na linha de comando):
+Any OpenAI-compatible API works. There are four ready-made profiles (`LLM_PROVIDER` in `.env`, or `--provider` on the command line):
 
-| Perfil | Modelo padrão | Chave | Custo |
+| Profile | Default model | Key | Cost |
 |---|---|---|---|
-| `groq` (padrão) | openai/gpt-oss-120b (modelo aberto, servido pela Groq) | `GROQ_API_KEY` ([console](https://console.groq.com/keys)) | plano gratuito, sem cartão |
-| `gemini` | gemini-3.5-flash | `GEMINI_API_KEY` ([AI Studio](https://aistudio.google.com/apikey)) | plano gratuito (20 requisições/dia) |
-| `ollama` | qwen2.5:3b | nenhuma ([ollama.com](https://ollama.com), depois `ollama pull qwen2.5:3b`) | local |
-| `openai` | gpt-4.1-mini | `OPENAI_API_KEY` | pago |
+| `groq` (default) | openai/gpt-oss-120b (open-weights model served by Groq) | `GROQ_API_KEY` ([console](https://console.groq.com/keys)) | free tier, no credit card |
+| `gemini` | gemini-3.5-flash | `GEMINI_API_KEY` ([AI Studio](https://aistudio.google.com/apikey)) | free tier (20 requests/day) |
+| `ollama` | qwen2.5:3b | none ([ollama.com](https://ollama.com), then `ollama pull qwen2.5:3b`) | local |
+| `openai` | gpt-4.1-mini | `OPENAI_API_KEY` | paid |
 
-Para outro endpoint, defina `LLM_BASE_URL`, `LLM_MODEL` e `LLM_API_KEY`. Se a Groq gratuita recusar pedidos por limite de tokens de saída por minuto (acontece com `qwen/qwen3.8-27b`), defina `GROQ_MAX_TOKENS=900`. As chaves são lidas **só do `.env`** do projeto, nunca das variáveis de ambiente da máquina, para não usar por engano uma chave de outro projeto. O `.env` está no `.gitignore`; nunca versione chaves.
+For another endpoint, set `LLM_BASE_URL`, `LLM_MODEL` and `LLM_API_KEY`. If the free Groq tier rejects requests because of the output-tokens-per-minute limit (it happens with `qwen/qwen3.8-27b`), set `GROQ_MAX_TOKENS=900`. Keys are read **only from the project's `.env`**, never from the machine's environment variables, so a key from another project is not used by accident. `.env` is in `.gitignore`; never commit keys.
 
-### Comandos
+### Commands
 
 ```bash
-python -m emporio.cli                     # conversa
-python -m emporio.cli --trace             # mostra cada chamada de ferramenta e o consumo de tokens
-python -m emporio.cli --provider groq     # escolhe o provedor
-python -m emporio.cli --resume            # retoma a última conversa (histórico em SQLite)
+python -m emporio.cli                     # chat
+python -m emporio.cli --trace             # shows every tool call and the token usage
+python -m emporio.cli --provider groq     # picks the provider
+python -m emporio.cli --resume            # resumes the last conversation (history in SQLite)
 
-pytest                                    # testes determinísticos (sem rede, sem chave)
-python -m emporio.eval                    # golden set contra o LLM (3 repetições por caso)
-python -m emporio.eval --provider gemini groq ollama --runs 1 --pause 5   # compara provedores
-python scripts/gerar_exemplos.py          # regenera examples/*.md
-python -m emporio.data_quality            # relatório de qualidade dos dados
+pytest                                    # deterministic tests (no network, no key)
+python -m emporio.eval                    # golden set against the LLM (3 runs per case)
+python -m emporio.eval --provider gemini groq ollama --runs 1 --pause 5   # compares providers
+python scripts/gerar_exemplos.py          # regenerates examples/*.md
+python -m emporio.data_quality            # data quality report
 ```
 
-### Data de referência
+### Reference date
 
-Os dados terminam em 22/03/2026. Com o relógio real, todo pedido pendente pareceria parado há meses e todo prazo de devolução estaria vencido. Por isso o `.env` define `REFERENCE_DATE=2026-03-25` e `REFERENCE_TIME=10:30` (quarta-feira, loja aberta), o "agora" da loja. Deixe vazio para usar o relógio real. Nessa data nenhum pedido entregue está dentro dos 7 dias de arrependimento; o caso em que a devolução é aceita está coberto em teste com outra data (`test_return_accepted_with_other_reference_date`).
+The data ends on 2026-03-22. With the real clock, every pending order would look stalled for months and every return deadline would have expired. So `.env` sets `REFERENCE_DATE=2026-03-25` and `REFERENCE_TIME=10:30` (a Wednesday, store open), the store's "now". Leave them empty to use the real clock. On that date no delivered order is within the 7-day withdrawal window; the case where a return is accepted is covered by a test with another date (`test_return_accepted_with_other_reference_date`).
 
 ---
 
-## Decisões técnicas
+## Technical decisions
 
-### Abordagem: function calling com ferramentas determinísticas
+### Approach: function calling with deterministic tools
 
-12 ferramentas tipadas sobre SQLite:
+12 typed tools over SQLite (tool names are kept in Portuguese, as the agent uses them in the store's domain language):
 
-| Ferramenta | O que faz |
+| Tool | What it does |
 |---|---|
-| `buscar_produtos` | busca sem acento e tolerante a erro de digitação; preço original e atual, promoção ativa, disponibilidade, alerta de cadastro |
-| `detalhar_produto` | descrição, specs e promoções encerradas (para responder "aquela promoção ainda vale?") |
-| `listar_promocoes_ativas` | só o que está ativo no sistema |
-| `calcular_pagamento` | recebe só códigos e quantidades; aplica promoção, PIX não cumulativo, faixas de parcela mínima e arredondamento |
-| `calcular_frete` | regra da região metropolitana ou prazos de PAC/SEDEX/Jadlog |
-| `verificar_cliente` | e-mail + (nº do pedido ou 4 últimos dígitos do telefone); grava o cliente no estado da sessão |
-| `listar_pedidos_do_cliente`, `consultar_pedido` | só pedidos do cliente verificado; checagem no código |
-| `avaliar_devolucao` | calcula arrependimento, troca por preferência, troca por defeito e garantia legal de um pedido |
-| `consultar_politica` | texto exato de uma seção do manual (lista fechada) |
-| `info_loja` | contatos, horários e se a loja está aberta agora (feriados nacionais e de MS) |
-| `encaminhar_humano` | abre chamado com protocolo e prazo de 24 horas úteis |
+| `buscar_produtos` | accent-insensitive, typo-tolerant search; original and current price, active promotion, availability, data-quality alert |
+| `detalhar_produto` | description, specs and ended promotions (to answer "is that promotion still valid?"); also checks whether a requested quantity can be met without revealing the stock count |
+| `listar_promocoes_ativas` | only what is active in the system, optionally by category |
+| `calcular_pagamento` | takes only product codes and quantities; applies promotion, non-cumulative PIX discount, minimum-installment bands and rounding |
+| `calcular_frete` | metropolitan-area rule, or PAC/SEDEX/Jadlog lead times |
+| `verificar_cliente` | e-mail + (order number or last 4 digits of the phone); stores the customer in the session state |
+| `listar_pedidos_do_cliente`, `consultar_pedido` | only the verified customer's orders; the check is in code |
+| `avaliar_devolucao` | computes withdrawal, preference exchange, defect exchange and legal warranty for an order, and tells the model the next step |
+| `consultar_politica` | the exact text of one manual section (closed list) |
+| `info_loja` | contacts, hours and whether the store is open now (national and MS holidays) |
+| `encaminhar_humano` | opens a ticket with a protocol number and a 24-business-hour return time |
 
-**Por que não text-to-SQL:** são 6 tabelas pequenas e perguntas previsíveis. SQL gerado pelo modelo aumentaria o risco (vazar dados de outro cliente, errar uma soma) sem ganho real.
+**Why not text-to-SQL:** there are 6 small tables and predictable questions. Model-generated SQL would add risk (leaking another customer's data, getting a sum wrong) with no real gain.
 
-**Por que não RAG vetorial:** o manual tem cerca de 3 mil tokens e seções bem definidas. Ele foi extraído uma vez para [`data/policies.md`](data/policies.md), dividido por seção, e a ferramenta `consultar_politica` recebe a seção de uma lista fechada. Não existe falha de recuperação, e cada consulta de política fica registrada, o que permite medir se o agente *sabe quando consultar políticas*, um dos critérios do desafio. Um teste confere frase a frase se o `policies.md` bate com o PDF. Colocar o manual inteiro no prompt também funcionaria, mas aí não daria para medir esse comportamento.
+**Why not vector RAG:** the manual is about 3k tokens with well-defined sections. It was extracted once to [`data/policies.md`](data/policies.md), split by section, and the `consultar_politica` tool takes the section from a closed list. There is no retrieval failure, and every policy lookup is logged, which makes it possible to measure whether the agent *knows when to consult policies*, one of the challenge's criteria. A test checks sentence by sentence that `policies.md` matches the PDF. Putting the whole manual in the prompt would also work, but then that behavior could not be measured.
 
-**Por que sem framework (LangChain etc.):** o loop de function calling tem ~100 linhas ([`agent.py`](src/emporio/agent.py)). Explícito é mais fácil de depurar, testar com um cliente falso e trocar de provedor.
+**Why no framework (LangChain etc.):** the function-calling loop is ~100 lines ([`agent.py`](src/emporio/agent.py)). Explicit code is easier to debug, to test with a fake client and to move between providers.
 
-### Segurança por construção, não por prompt
+### Security by construction, not by prompt
 
-- O cliente verificado fica no estado da sessão, injetado pelo código. O modelo não tem como passar um `customer_id`; se tentar, a chamada é rejeitada.
-- Pedido de outro cliente devolve "não encontrei no seu cadastro", sem revelar que existe.
-- Verificação com limite de 3 tentativas e mensagem genérica (não revela se o e-mail existe).
-- As ferramentas devolvem só o primeiro nome; nunca telefone ou e-mail.
-- A verificação não é persistida: ao retomar uma conversa, o cliente se identifica de novo.
-- A quantidade exata em estoque nunca chega ao modelo, porque é informação interna da loja. A busca diz só "disponível" ou "últimas unidades". Se o cliente pergunta "tem 3?", `detalhar_produto` recebe a quantidade e responde sim ou não, sem revelar o número.
+- The verified customer lives in the session state, injected by the code. The model cannot pass a `customer_id`; if it tries, the call is rejected.
+- Another customer's order returns "not found in your account", without revealing that it exists.
+- Verification is limited to 3 attempts with a generic message (it does not reveal whether an e-mail exists).
+- Tools return only the first name, never phone or e-mail.
+- Verification is not persisted: when a conversation is resumed, the customer identifies again.
+- The exact stock quantity never reaches the model, because it is internal store information. Search says only "available" or "last units". If the customer asks "do you have 3?", `detalhar_produto` receives the quantity and answers yes or no without revealing the number.
+- A ticket's summary is assembled by the code from the order record; the model only describes what the customer said. There is one open ticket per order and session.
 
-### Estratégia de prompt
+### Prompt strategy
 
-[`prompts/system.md`](src/emporio/prompts/system.md): persona do §7.1 ("um amigo que entende de música"), fluxo de 5 passos do §7.2 e regras inegociáveis (nada de preço, prazo ou política sem ferramenta; promoção sempre com preço original e percentual; o sistema, não o calendário, diz se uma promoção vale). O prompt recebe a data, a hora e se a loja está aberta, para avisar o horário de retorno fora do expediente (§7.1). As descrições das ferramentas também são prompt: dizem quando usar cada uma.
+[`prompts/system.md`](src/emporio/prompts/system.md): the persona from §7.1 ("a friend who knows music"), the 5-step flow from §7.2 and non-negotiable rules (no price, deadline or policy without a tool; a promotional price always shown with the original price and percentage; the system, not the calendar, says whether a promotion is valid). The prompt receives the date, the time and whether the store is open, to announce when human service resumes outside business hours (§7.1). Tool descriptions are prompt too: they say when to use each one.
 
-As respostas das ferramentas carregam instruções contextuais (ex.: `alerta_cadastro`, `nota_de_interpretacao`, `instrucao` em pedido atrasado). Assim a regra chega ao modelo no momento em que importa, sem inflar o prompt de sistema.
+Tool responses carry contextual instructions (e.g. `alerta_cadastro`, `nota_de_interpretacao`, `proximo_passo` for returns, `instrucao` for late orders). The rule reaches the model at the moment it matters, without inflating the system prompt.
 
-### Escolha do modelo
+### Model choice
 
-Restrição autoimposta: o projeto tinha que rodar **sem custo**, para qualquer avaliador conseguir testar. Comparei três opções gratuitas no golden set (tabela em [Resultados](#resultados)):
+Self-imposed constraint: the project had to run **at no cost**, so any reviewer can test it. I compared three free options on the golden set (table in [Results](#results)):
 
-- **Groq / gpt-oss-120b — escolhido.** Melhor resultado com folga (22/25 casos, 31/33 turnos com a ferramenta certa), segue o protocolo de verificação e cita as seções do manual. Modelo de pesos abertos: dá para migrar para outro provedor ou rodar localmente com hardware adequado.
-- **Gemini 3.5 Flash.** Responde bem em testes avulsos, mas o plano gratuito tem cota de 20 requisições/dia por modelo, insuficiente até para uma rodada da avaliação.
-- **Ollama / qwen2.5:3b (local).** Único que cabia numa máquina de 8 GB sem GPU. Não segue o protocolo de ferramentas (4/25). Mantido como opção sem chave, com a limitação documentada.
+- **Groq / gpt-oss-120b — chosen.** Best result by a wide margin (22/25 cases, 31/33 turns with the right tool), follows the verification protocol and cites manual sections. Open-weights model: it can be moved to another provider or run locally with suitable hardware.
+- **Gemini 3.5 Flash.** Answers well in ad-hoc tests, but the free tier has a quota of 20 requests/day per model, not enough even for one evaluation run.
+- **Ollama / qwen2.5:3b (local).** The only one that fit on an 8 GB machine without a GPU. It does not follow the tool protocol (4/25). Kept as a no-key option, with the limitation documented.
 
-A arquitetura não depende do modelo: trocar é uma linha no `.env`, e o golden set mede o impacto da troca.
+The architecture does not depend on the model: switching is one line in `.env`, and the golden set measures the impact of the switch.
 
-### Interface e memória
+### Interface and memory
 
-CLI com `rich` (o desafio prioriza o agente funcionando). Histórico persistido em SQLite por sessão (`data/sessions.db`), com janela das últimas 40 mensagens enviadas ao modelo sem separar uma chamada de ferramenta do seu resultado. Chamados ficam numa tabela `tickets`.
+CLI with `rich` (the challenge prioritizes the agent working correctly). History is persisted in SQLite per session (`data/sessions.db`), with a window of the last 40 messages sent to the model without ever separating a tool call from its result. Tickets go in a `tickets` table.
 
 ---
 
-## Avaliação
+## Evaluation
 
-- **Testes determinísticos** (`pytest`, 60 testes, sem rede): qualidade de dados, fidelidade do manual, todas as ferramentas e casos de borda, e o loop do agente com um LLM falso.
-- **Golden set** ([`tests/eval/golden.yaml`](tests/eval/golden.yaml)): 26 casos de desenvolvimento + 5 reservados (holdout) que não foram usados para ajustar o prompt. Inclui conversas com várias mensagens. Para cada turno o avaliador confere: ferramentas chamadas, política respondida sem `consultar_politica` (conta como falha), valores em R$ extraídos da resposta contra o gabarito (inclusive valores proibidos, como o PIX acumulado com promoção) e recusas. Cada caso roda 3 vezes com temperatura 0 e só passa se passar nas 3. LLM como juiz é opcional (`--judge`) e só avalia o tom. O caso `quantidade_em_estoque` entrou depois da comparação abaixo (que usa os 25 casos originais); ele passa com qwen/qwen3.8-27b e ainda não foi rodado no gpt-oss-120b.
+- **Deterministic tests** (`pytest`, 60 tests, no network): data quality, fidelity to the manual, every tool and edge case, and the agent loop with a fake LLM.
+- **Golden set** ([`tests/eval/golden.yaml`](tests/eval/golden.yaml)): 26 development cases + 5 held-out cases (holdout) that were not used to tune the prompt. It includes multi-message conversations. For each turn the evaluator checks: tools called, a policy answered without `consultar_politica` (counts as a failure), R$ amounts extracted from the reply against the expected values (including forbidden values, such as PIX stacked with a promotion) and refusals. Each case runs 3 times at temperature 0 and passes only if it passes all 3. An LLM judge is optional (`--judge`) and only evaluates tone. The `quantidade_em_estoque` case was added after the comparison below (which uses the original 25 cases); it passes with qwen/qwen3.8-27b and has not yet been run on gpt-oss-120b.
 
-### Resultados
+### Results
 
-Golden set com 1 repetição por caso (detalhes e leitura em [`eval_results/comparacao.md`](eval_results/comparacao.md)):
+Golden set with 1 run per case (details and reading in [`eval_results/comparacao.md`](eval_results/comparacao.md)):
 
-| Provedor / modelo | Casos dev (25) | Holdout (5) | Ferramenta certa por turno | Latência mediana |
+| Provider / model | Dev cases (25) | Holdout (5) | Right tool per turn | Median latency |
 |---|---|---|---|---|
-| **Groq / gpt-oss-120b** | **22/25** | **4/5** | **31/33** | 18,4 s |
-| Ollama / qwen2.5:3b (CPU) | 4/25 | 0/5 | 11/33 | 8,7 s |
-| Gemini / 3.5 Flash | inválido: cota diária esgotada (33 erros do provedor) | — | — | — |
+| **Groq / gpt-oss-120b** | **22/25** | **4/5** | **31/33** | 18.4 s |
+| Ollama / qwen2.5:3b (CPU) | 4/25 | 0/5 | 11/33 | 8.7 s |
+| Gemini / 3.5 Flash | invalid: daily quota exhausted (33 provider errors) | — | — | — |
 
-O que as falhas ensinaram (e o que mudou):
+What the failures taught (and what changed):
 
-- **Ferramenta, não prompt:** o modelo local classificou "Takamine GD20" como guitarra e a busca voltou vazia. A busca agora tenta de novo sem a categoria. O mesmo raciocínio levou a expor promoções encerradas já na busca, para que "a promoção ainda vale?" seja respondida com dado e não por dedução.
-- **Erro real de comunicação:** no caso de devolução, o modelo recebeu `elegivel: false` com garantia até 23/01/2026 e, mesmo assim, sugeriu que a troca por defeito era possível. O prompt passou a mandar seguir o campo `elegivel` à risca e explicar a garantia do fabricante antes de abrir chamado.
-- **Erros vistos nas conversas de exemplo, corrigidos na ferramenta:** o modelo escreveu no chamado o nome completo da cliente, deduzido do e-mail, e confundiu a data do pedido com a de envio. Agora o código monta os dados do pedido no chamado e o modelo só descreve o relato do cliente. Ao sugerir "outros violões em promoção", o modelo incluiu o desconto de um ukulele; `listar_promocoes_ativas` passou a filtrar por categoria. O modelo também abriu chamado sem perguntar e, depois, um segundo chamado para o mesmo pedido: a ferramenta agora devolve o protocolo existente em vez de duplicar, e a instrução do pedido atrasado manda perguntar antes. Erros de português ("Chamei aberto", "se encerraria") levaram as ferramentas a devolver frases prontas para prazos e protocolos.
-- **Robustez de provedor:** a Groq valida a chamada de ferramenta gerada e devolve 400 quando ela vem malformada; o agente refaz a chamada uma vez.
-- **Bug do avaliador:** o modelo escreveu "e‑mail" com hífen Unicode; a normalização de texto passou a tratar hífens Unicode.
-- **Holdout não usado para ajuste:** o pedido de exclusão de dados (§9) foi tratado como fora de escopo. Registrado como falha conhecida, sem ajuste no prompt.
+- **Tool, not prompt:** the local model classified "Takamine GD20" as a guitar and the search came back empty. The search now retries without the category. The same reasoning led to exposing ended promotions already in the search result, so "is that promotion still valid?" is answered with data rather than by deduction.
+- **A real communication error:** in the return case, the model received `elegivel: false` with warranty until 2026-01-23 and still suggested that a defect exchange was possible. The prompt now says to follow the `elegivel` field strictly, and the tool now returns the next step and ready-made phrasing for deadlines (ended vs. still valid).
+- **Errors seen in the example conversations, fixed in the tools:** the model wrote the customer's full name in the ticket, deduced from the e-mail, and confused the order date with the shipping date. Now the code builds the order data in the ticket and the model only describes the customer's request. When suggesting "other guitars on promotion", the model included the discount of a ukulele; `listar_promocoes_ativas` now filters by category. The model also opened a ticket without asking and then a second ticket for the same order: the tool now returns the existing protocol instead of duplicating, and the late-order instruction says to ask first. Portuguese mistakes ("Chamei aberto") led the tools to return ready-made phrases for deadlines and protocols.
+- **Provider robustness:** Groq validates the generated tool call and returns 400 when it is malformed; the agent retries the call once.
+- **Evaluator bug:** the model wrote "e‑mail" with a Unicode hyphen; text normalization now handles Unicode hyphens.
+- **Holdout not used for tuning:** the data-deletion request (§9) was treated as out of scope. Recorded as a known failure, with no prompt adjustment.
 
-Limitação da própria avaliação: o plano gratuito da Groq dá 200 mil tokens/dia por modelo e uma rodada completa usa ~235 mil, então as 3 repetições previstas não couberam num dia. As correções foram validadas em execuções dirigidas dos casos afetados; uma rodada completa com 3 repetições é o próximo passo.
+Limitation of the evaluation itself: Groq's free tier allows 200k tokens/day per model and a full run uses ~235k, so the planned 3 runs did not fit in one day. The fixes were validated with targeted runs of the affected cases; a full 3-run evaluation is the next step.
 
-### Conversas de exemplo
+### Example conversations
 
-Cinco conversas reais em [`examples/`](examples/), geradas por `scripts/gerar_exemplos.py` com o rastro das chamadas de ferramenta (bloco "Rastro das ferramentas" em cada turno). Nada foi editado à mão.
+Five real conversations in [`examples/`](examples/) (in Portuguese, the agent's language), generated by `scripts/gerar_exemplos.py` with the trace of tool calls (a "Rastro das ferramentas" block in each turn). Nothing was edited by hand.
 
-| Arquivo | Cenário |
+| File | Scenario |
 |---|---|
-| [01_catalogo_violoes](examples/01_catalogo_violoes.md) | Violões até R$ 1.000 e produto sem estoque com alternativas |
-| [02_precos_e_promocoes](examples/02_precos_e_promocoes.md) | Promoção encerrada, promoção ativa, PIX não cumulativo e 12x |
-| [03_devolucao_fora_do_prazo](examples/03_devolucao_fora_do_prazo.md) | **Caso não trivial:** verificação do cliente, prazos calculados, garantia legal vencida e garantia do fabricante |
-| [04_pedido_atrasado](examples/04_pedido_atrasado.md) | Pedido atrasado consultado em tempo real e chamado aberto |
-| [05_fora_de_escopo_e_loja](examples/05_fora_de_escopo_e_loja.md) | Acessórios, pergunta fora de escopo, endereço e horário |
+| [01_catalogo_violoes](examples/01_catalogo_violoes.md) | Acoustic guitars up to R$ 1,000 and an out-of-stock product with alternatives |
+| [02_precos_e_promocoes](examples/02_precos_e_promocoes.md) | Ended promotion, active promotion, non-cumulative PIX and 12 installments |
+| [03_devolucao_fora_do_prazo](examples/03_devolucao_fora_do_prazo.md) | **Non-trivial case:** customer verification, computed deadlines, expired legal warranty and manufacturer warranty |
+| [04_pedido_atrasado](examples/04_pedido_atrasado.md) | Late order looked up in real time and a ticket opened |
+| [05_fora_de_escopo_e_loja](examples/05_fora_de_escopo_e_loja.md) | Accessories, an out-of-scope question, address and opening hours |
 
-Todas foram geradas com o modelo padrão (`openai/gpt-oss-120b`). Para regenerar todas: `python scripts/gerar_exemplos.py groq`; para uma só: `python scripts/gerar_exemplos.py groq 04_pedido_atrasado`. O script não salva conversas em que o provedor falhou.
+All were generated with the default model (`openai/gpt-oss-120b`). To regenerate all: `python scripts/gerar_exemplos.py groq`; for one: `python scripts/gerar_exemplos.py groq 04_pedido_atrasado`. The script does not save conversations in which the provider failed.
 
 ---
 
-## Qualidade dos dados e suposições
+## Data quality and assumptions
 
-Os CSVs originais ficam intactos em `data/raw/`; o sistema usa uma cópia tratada (`data/emporio.db`, gerada por `python -m emporio.ingest`).
+The original CSVs stay untouched in `data/raw/`; the system uses a treated copy (`data/emporio.db`, generated by `python -m emporio.ingest`).
 
-| # | Problema | O que foi feito | Em produção |
+| # | Problem | What was done | In production |
 |---|---|---|---|
-| 1 | Produtos 135 a 144 com cara de cadastro automático: nome genérico ("Bass 3X"), marca do nome diferente da descrição em 7 deles, specs que contradizem a descrição (137: 5 cordas × 4; 139: Poplar × Maple; 142: 88 × 61 teclas; 135: Alder × Ash) e preços atípicos (baixo a R$ 441) | Detecção em código por quatro sinais → `data_quality_flag = cadastro_em_revisao`. O agente informa nome, preço e disponibilidade (dados do sistema, §7.1), mas não afirma specs nem descrição e diz que a equipe vai confirmar | Alerta automático para o responsável pelo catálogo corrigir na origem |
-| 2 | 96 ativo sem estoque; 113 descontinuado; 136 descontinuado com 13 unidades | Disponibilidade = status + estoque. Descontinuado nunca é oferecido, mesmo com estoque (§7.3); sugere alternativas | Regra no ERP impedindo o estado inconsistente |
-| 3 | 130 `coming_soon` aparece no pedido 3, já entregue | Agente diz "em breve" e não vende; inconsistência no relatório | Revisar o status com a equipe |
-| 4 | Total gravado ≠ soma dos itens (pedido 3: 3.450 × 3.498; pedido 20: 1.400 × 1.488) | Mostra o total gravado, sem recalcular (pode haver desconto não registrado) | Guardar desconto/frete por pedido |
-| 5 | Promoções repetidas (93, 96, 99), nenhuma com validade | Só vale `is_active=1`, uma por produto (a de maior desconto) | Datas de início/fim nas promoções |
-| 6 | Telefone/WhatsApp: §1.2 diz (67) 3341-4444; §7 diz WhatsApp (67) 3321-4500. E-mail com acento no §1.2 | 3341-4444 como telefone, 3321-4500 como WhatsApp (§7 é específico); e-mail sem acento (a capa não tem) | Confirmar com a loja |
-| 7 | Tabela de pagamento: "parcela mínima R$ 100"; §3.1 detalha faixas; "sem valor mínimo (exceto abaixo de R$ 50)" é ambíguo | Segue o §3.1: até 3x ≥ R$ 50; 4x–6x ≥ R$ 80; 7x–12x ≥ R$ 100. Parcelas com centavos truncados e a última absorve a diferença. Pagamento combinado só acima de R$ 2.000 | Confirmar com o financeiro |
-| 8 | E-mail bruno.martins@jmail.com em dois clientes (11 e 43) | Verificação com e-mail + segundo dado (pedido ou final do telefone), que desambigua | E-mail único no cadastro |
-| 9 | Dados terminam em 03/2026 | `REFERENCE_DATE` (ver acima) | Relógio real |
-| 10 | PIX 5% não acumula com promoção (§6.2) | Regra fixa em `calcular_pagamento`, por item | — |
-| 11 | Manual fala em sopros e 300+ instrumentos; base tem 65 e nenhum sopro | "No momento não temos esse tipo de instrumento disponível", nunca "não vendemos" | — |
-| 12 | §4.2: defeito em até 30 dias da compra; §8.1: garantia legal de 90 dias do recebimento (CDC) | Vale o mais protetivo: a loja atende defeito até o maior dos dois prazos; depois, garantia do fabricante com intermediação (§4.2, §8.2) | Revisar o manual |
-| 13 | §4.1 (arrependimento) vale só para compra online | Pedido com código de rastreio = online. Sem data real de entrega, o prazo conta da previsão de entrega (informado ao cliente) | Registrar data de entrega e canal da venda |
-| 14 | §6.1 cita Black Friday e Semana do Músico; nenhuma ativa | Vale só o sistema; se perguntarem, o agente diz com transparência que não está ativa e mostra o preço atual (§7.3) | — |
+| 1 | Products 135 to 144 look like automatic registrations: generic name ("Bass 3X"), brand in the name different from the description in 7 of them, specs that contradict the description (137: 5 strings × 4; 139: Poplar × Maple; 142: 88 × 61 keys; 135: Alder × Ash) and atypical prices (bass at R$ 441) | Detected in code by four signals → `data_quality_flag = cadastro_em_revisao`. The agent gives name, price and availability (system data, §7.1) but does not state specs or description and says the team will confirm | Automatic alert to the catalog owner to fix it at the source |
+| 2 | 96 active with no stock; 113 discontinued; 136 discontinued with 13 units | Availability = status + stock. Discontinued is never offered, even with stock (§7.3); suggests alternatives | An ERP rule preventing the inconsistent state |
+| 3 | 130 `coming_soon` appears in order 3, already delivered | Agent says "coming soon" and does not sell; inconsistency goes in the report | Review the status with the team |
+| 4 | Recorded total ≠ sum of items (order 3: 3,450 × 3,498; order 20: 1,400 × 1,488) | Shows the recorded total, without recalculating (there may be an unrecorded discount) | Store discount/shipping per order |
+| 5 | Repeated promotions (93, 96, 99), none with an expiry | Only `is_active=1` counts, one per product (the highest discount) | Start/end dates on promotions |
+| 6 | Phone/WhatsApp: §1.2 says (67) 3341-4444; §7 says WhatsApp (67) 3321-4500. E-mail has an accent in §1.2 | 3341-4444 as phone, 3321-4500 as WhatsApp (§7 is more specific); e-mail without accent (the cover has none) | Confirm with the store |
+| 7 | Payment table: "minimum installment R$ 100"; §3.1 details bands; "no minimum (except below R$ 50)" is ambiguous | Follows §3.1: up to 3x ≥ R$ 50; 4x–6x ≥ R$ 80; 7x–12x ≥ R$ 100. Installments with cents are truncated and the last one absorbs the difference. Combined payment only above R$ 2,000 | Confirm with finance |
+| 8 | E-mail bruno.martins@jmail.com on two customers (11 and 43) | Verification with e-mail + a second factor (order or phone ending), which disambiguates | Unique e-mail in the registry |
+| 9 | Data ends in 03/2026 | `REFERENCE_DATE` (see above) | Real clock |
+| 10 | PIX 5% does not stack with a promotion (§6.2) | Fixed rule in `calcular_pagamento`, per item | — |
+| 11 | The manual mentions wind instruments and 300+ instruments; the database has 65 and no wind instruments | "We don't currently have this type of instrument available", never "we don't sell it" | — |
+| 12 | §4.2: defect within 30 days of purchase; §8.1: 90-day legal warranty from receipt (consumer code) | The most protective rule applies: the store handles a defect until the later of the two deadlines; afterwards, manufacturer warranty with the store's intermediation (§4.2, §8.2) | Review the manual |
+| 13 | §4.1 (withdrawal) applies only to online purchases | An order with a tracking code = online. Without a real delivery date, the deadline counts from the estimated delivery date (the customer is told) | Record the delivery date and sales channel |
+| 14 | §6.1 mentions Black Friday and Musician's Week; none active | Only the system counts; if asked, the agent says transparently that it is not active and shows the current price (§7.3) | — |
 
-Outras suposições: a região metropolitana de Campo Grande (§5.1) foi tratada como só Campo Grande (o manual não lista os municípios); pedido de exatamente R$ 500 tem frete grátis (o manual diz "acima" e "abaixo"); os 7 dias de troca por preferência (§4.3) contam do recebimento; baixos, baterias e teclados podem exigir frete especial fora da região (§5.2).
-
----
-
-## Limitações e próximos passos
-
-- **Autenticação real:** e-mail e telefone não são segredo. Em produção, código por WhatsApp/e-mail (OTP).
-- **Integração com o WhatsApp** (canal principal do §7) via API oficial, com o estado de sessão por número.
-- **Feriados municipais** de Campo Grande e horários especiais (§2) numa tabela configurável.
-- **Cotação real de frete** por CEP (Correios/Jadlog).
-- **Observabilidade:** registrar cada chamada de ferramenta, latência e custo; alertar quando o agente responde sem consultar.
-- **Avaliação contínua no CI** com o golden set, mais casos adversariais e LLM como juiz calibrado com notas humanas.
-- **Chamados e alertas de qualidade de dados** integrados ao sistema da equipe, em vez de uma tabela local.
-- **LGPD:** o histórico em SQLite contém dados pessoais. Em produção: retenção definida (ex.: 90 dias), anonimização depois disso, criptografia em repouso e atendimento a pedidos de exclusão (§9).
+Other assumptions: the Campo Grande metropolitan area (§5.1) was treated as Campo Grande only (the manual does not list the municipalities); an order of exactly R$ 500 gets free shipping (the manual says "above" and "below"); the 7 days for preference exchange (§4.3) count from receipt; basses, drum kits and keyboards may require special freight outside the region (§5.2).
 
 ---
 
-## Uso de assistente de código
+## Known limitations and next steps
 
-Trabalho com **desenvolvimento orientado a especificação (spec-driven development)**: faço todo o levantamento de requisitos e a análise de causa raiz (RCA) dos problemas antes de escrever código, e só então começo a desenvolver. Neste projeto usei o **Claude Code** (extensão do VS Code) como assistente de implementação. O fluxo foi este:
+- **Real authentication:** e-mail and phone are not secrets. In production, a one-time code by WhatsApp/e-mail (OTP).
+- **WhatsApp integration** (the main channel in §7) through the official API, with session state per number.
+- **Municipal holidays** of Campo Grande and special hours (§2) in a configurable table.
+- **Real shipping quotes** by postal code (Correios/Jadlog).
+- **Observability:** log every tool call, latency and cost; alert when the agent answers without looking anything up.
+- **Continuous evaluation in CI** with the golden set, more adversarial cases and an LLM judge calibrated with human ratings.
+- **Tickets and data-quality alerts** integrated with the team's system, instead of a local table.
+- **Privacy (LGPD):** the SQLite history contains personal data. In production: a defined retention period (e.g. 90 days), anonymization afterwards, encryption at rest and handling of deletion requests (§9).
 
-1. **Levantamento de requisitos.** Antes do código, escrevi um plano de ação: leitura do enunciado, dos CSVs e do manual de políticas; inventário dos problemas de qualidade dos dados e de como tratar cada um; arquitetura, ferramentas, critérios de avaliação (golden set) e os cenários das conversas de exemplo, com os números conferidos nos dados.
-2. **Especificação validada antes de implementar.** Pedi ao assistente que confrontasse o plano com o enunciado. As lacunas encontradas entraram na especificação antes de qualquer código: uma ferramenta para calcular prazos de devolução (o modelo nunca faz conta), a exposição de promoções encerradas para responder "essa promoção ainda vale?" e a hora fixa para os testes serem reprodutíveis.
-3. **Implementação a partir da especificação.** O código e os testes foram desenvolvidos com o Claude Code, seguindo o plano. As decisões de produto e de risco foram minhas: nada publicado sem minha revisão, só provedores gratuitos, nenhuma chave corporativa, chaves fora do código e do chat (gravadas no `.env` por um script local) e casos reservados do golden set fora do ajuste do prompt.
-4. **RCA em cada falha.** Testei o agente conversando com ele e rodando o golden set. Cada problema foi classificado (erro do modelo, do provedor, do avaliador ou dos dados) e corrigido na causa, de preferência na ferramenta, e não no texto da resposta. Exemplos: a quantidade exata em estoque deixou de chegar ao modelo, o resumo do chamado passou a ser montado pelo código, chamados duplicados passaram a ser bloqueados e os prazos de garantia passaram a vir com a frase pronta. As conversas de exemplo foram regeneradas depois das correções, nunca editadas à mão.
+---
+
+## Use of coding assistants
+
+I work with **spec-driven development**: I do all the requirements gathering and root cause analysis (RCA) of the problems before writing code, and only then start developing. In this project I used **Claude Code** (VS Code extension) as an implementation assistant. The workflow was:
+
+1. **Requirements gathering.** Before any code, I wrote an action plan: reading the brief, the CSVs and the policy manual; an inventory of the data-quality problems and how to handle each one; architecture, tools, evaluation criteria (golden set) and the example-conversation scenarios, with the numbers checked against the data.
+2. **Specification validated before implementing.** I asked the assistant to challenge the plan against the brief. The gaps it found went into the specification before any code: a tool to compute return deadlines (the model never does arithmetic), exposing ended promotions to answer "is that promotion still valid?", and a fixed time of day so tests are reproducible.
+3. **Implementation from the specification.** The code and tests were developed with Claude Code, following the plan. The product and risk decisions were mine: nothing published without my review, free providers only, no corporate key, keys kept out of code and chat (written to `.env` by a local script) and the held-out golden-set cases kept out of prompt tuning.
+4. **RCA on every failure.** I tested the agent by chatting with it and by running the golden set. Each problem was classified (model, provider, evaluator or data) and fixed at the cause, preferably in a tool rather than in the wording of the reply. Examples: the exact stock quantity no longer reaches the model, the ticket summary is built by the code, duplicate tickets are blocked and warranty deadlines come with ready-made phrasing. The example conversations were regenerated after the fixes, never edited by hand.
